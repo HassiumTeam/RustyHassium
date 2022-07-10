@@ -1,7 +1,25 @@
 #[derive(Clone)]
 pub struct Token {
-    pub token_type: String,
+    pub token_type: TokenType,
     pub value: String,
+}
+
+#[derive(Clone, PartialEq)]
+pub enum TokenType {
+    Assign,
+    CloseBrace,
+    Colon,
+    Comma,
+    CloseParen,
+    Dot,
+    Id,
+    Number,
+    Op,
+    OpenBrace,
+    OpenParen,
+    Semicolon,
+    String,
+    Variadic,
 }
 
 struct LexerContext {
@@ -41,9 +59,9 @@ impl LexerContext {
         return 0;
     }
 
-    fn add_tok(&mut self, token_type: &str, value: &str) {
+    fn add_tok(&mut self, token_type: TokenType, value: &str) {
         self.tokens.push(Token {
-            token_type: token_type.to_string(),
+            token_type: token_type,
             value: value.to_string(),
         });
     }
@@ -73,75 +91,75 @@ pub fn tokenize(code: String) -> Vec<Token> {
                 '\'' => read_str(&mut context, '\''),
                 '=' => {
                     if next == '=' {
-                        context.add_tok("op", "==");
+                        context.add_tok(TokenType::Op, "==");
                         context.read();
                     } else {
-                        context.add_tok("assign", "=");
+                        context.add_tok(TokenType::Assign, "=");
                         context.read();
                     }
                 }
                 '+' | '-' | '*' | '/' | '%' | '^' => {
                     if next == '=' {
-                        context.add_tok("assign", &format!("{}{}", cur, next));
+                        context.add_tok(TokenType::Assign, &format!("{}{}", cur, next));
                         context.read();
                         context.read();
                     } else {
-                        context.add_tok("op", &cur.to_string());
+                        context.add_tok(TokenType::Op, &cur.to_string());
                         context.read();
                     }
                 }
                 '&' | '|' => {
                     if next == '=' {
-                        context.add_tok("assign", &format!("{}{}", cur, next));
+                        context.add_tok(TokenType::Assign, &format!("{}{}", cur, next));
                         context.read();
                         context.read();
                     } else if next == cur {
-                        context.add_tok("op", &format!("{}{}", cur, next));
+                        context.add_tok(TokenType::Op, &format!("{}{}", cur, next));
                         context.read();
                         context.read();
                     } else {
-                        context.add_tok("op", &cur.to_string());
+                        context.add_tok(TokenType::Op, &cur.to_string());
                         context.read();
                     }
                 }
                 '!' | '>' | '<' => {
                     if next == '=' {
-                        context.add_tok("op", &format!("{}{}", cur, next));
+                        context.add_tok(TokenType::Op, &format!("{}{}", cur, next));
                         context.read();
                         context.read();
                     } else {
-                        context.add_tok("op", &cur.to_string());
+                        context.add_tok(TokenType::Op, &cur.to_string());
                         context.read();
                     }
                 }
                 '(' => {
-                    context.add_tok("oparen", "(");
+                    context.add_tok(TokenType::OpenParen, "(");
                     context.read();
                 }
                 ')' => {
-                    context.add_tok("cparen", ")");
+                    context.add_tok(TokenType::CloseParen, ")");
                     context.read();
                 }
                 ',' => {
-                    context.add_tok("comma", ",");
+                    context.add_tok(TokenType::Comma, ",");
                     context.read();
                 }
                 '.' => {
                     if next == '.' {
-                        context.add_tok("variadic", "..");
+                        context.add_tok(TokenType::Variadic, "..");
                         context.read();
                         context.read();
                     } else {
-                        context.add_tok("dot", ".");
+                        context.add_tok(TokenType::Dot, ".");
                         context.read();
                     }
                 }
                 ':' => {
-                    context.add_tok("colon", ":");
+                    context.add_tok(TokenType::Colon, ":");
                     context.read();
                 }
                 ';' => {
-                    context.add_tok("semicolon", ";");
+                    context.add_tok(TokenType::Semicolon, ";");
                     context.read();
                 }
                 _ => panic!("Unknown char \"{}\"!", cur),
@@ -171,7 +189,7 @@ fn read_id(context: &mut LexerContext) {
     }
 
     context.tokens.push(Token {
-        token_type: String::from("id"),
+        token_type: TokenType::Id,
         value: string,
     });
 }
@@ -187,7 +205,7 @@ fn read_number(context: &mut LexerContext) {
     }
 
     context.tokens.push(Token {
-        token_type: String::from("number"),
+        token_type: TokenType::Number,
         value: string,
     });
 }
@@ -201,7 +219,7 @@ fn read_str(context: &mut LexerContext, delin: char) {
     context.read();
 
     context.tokens.push(Token {
-        token_type: String::from("string"),
+        token_type: TokenType::String,
         value: string,
     });
 }
@@ -209,6 +227,10 @@ fn read_str(context: &mut LexerContext, delin: char) {
 pub fn print_tokens(tokens: &mut Vec<Token>) {
     println!("Lexer tokens:");
     for token in tokens {
-        println!("Type: {}, Value: {}", token.token_type, token.value);
+        println!(
+            "Type: {}, Value: {}",
+            token.token_type.clone() as u32,
+            token.value
+        );
     }
 }
