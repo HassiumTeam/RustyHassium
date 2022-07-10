@@ -143,6 +143,14 @@ pub fn tokenize(code: String) -> Vec<Token> {
                         context.read();
                     }
                 }
+                '{' => {
+                    context.add_tok(TokenType::OpenBrace, "{");
+                    context.read();
+                }
+                '}' => {
+                    context.add_tok(TokenType::CloseBrace, "}");
+                    context.read();
+                }
                 '(' => {
                     context.add_tok(TokenType::OpenParen, "(");
                     context.read();
