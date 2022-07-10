@@ -61,5 +61,5 @@ pub enum AstNode {
 pub struct FuncParams {
     pub names: Vec<String>,
     pub variadic: bool,
-    pub types: Box<Vec<Option<AstNode>>>,
+    pub types: Vec<Option<AstNode>>,
 }

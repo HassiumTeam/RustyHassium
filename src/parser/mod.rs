@@ -247,7 +247,7 @@ fn parse_func_params(context: &mut ParserContext) -> FuncParams {
 
     FuncParams {
         names,
-        types: Box::new(types),
+        types,
         variadic,
     }
 }
