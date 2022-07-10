@@ -2,19 +2,14 @@ mod ast;
 
 use crate::lexer::{Token, TokenType};
 
-use self::ast::{AstNode, FuncParams};
+use self::ast::{AstNode, BinOpType, FuncParams, UnaryOpType};
 
 struct ParserContext {
     tokens: Vec<Token>,
     pos: u32,
-    len: usize,
 }
 
 impl ParserContext {
-    fn eof(&mut self) -> bool {
-        self.pos as usize >= self.len
-    }
-
     fn current(&self) -> Option<Token> {
         self.tokens.get(self.pos as usize).cloned()
     }
@@ -47,6 +42,7 @@ impl ParserContext {
         let current = current_option.unwrap();
         if value.is_none() {
             if current.token_type == token_type {
+                self.pos += 1;
                 current
             } else {
                 panic!(
@@ -57,6 +53,7 @@ impl ParserContext {
         } else {
             let _value = value.unwrap();
             if current.token_type == token_type && current.value == _value {
+                self.pos += 1;
                 current
             } else {
                 panic!(
@@ -72,10 +69,9 @@ pub fn parse(tokens: &mut Vec<Token>) -> AstNode {
     let mut context: ParserContext = ParserContext {
         tokens: tokens.to_vec(),
         pos: 0,
-        len: tokens.len(),
     };
     let mut children: Vec<AstNode> = Vec::new();
-    while !context.eof() {
+    while !context.match_tok(TokenType::EOF, None) {
         children.push(parse_statement(&mut context));
     }
 
@@ -85,7 +81,7 @@ pub fn parse(tokens: &mut Vec<Token>) -> AstNode {
 }
 
 fn parse_statement(context: &mut ParserContext) -> AstNode {
-    let statement: AstNode = if context.match_tok(TokenType::OpenParen, None) {
+    let statement: AstNode = if context.match_tok(TokenType::OpenBrace, None) {
         parse_block(context)
     } else if context.match_tok(TokenType::Id, Some("break")) {
         parse_break(context)
@@ -101,6 +97,8 @@ fn parse_statement(context: &mut ParserContext) -> AstNode {
         parse_foreach(context)
     } else if context.match_tok(TokenType::Id, Some("func")) {
         parse_func(context)
+    } else if context.accept_tok(TokenType::Semicolon, None) {
+        AstNode::Empty
     } else if context.match_tok(TokenType::Id, Some("if")) {
         parse_if(context)
     } else if context.match_tok(TokenType::Id, Some("import")) {
@@ -355,5 +353,285 @@ fn parse_expression_statement(context: &mut ParserContext) -> AstNode {
 }
 
 fn parse_expression(context: &mut ParserContext) -> AstNode {
-    return todo!();
+    parse_assign(context)
+}
+
+fn parse_assign(context: &mut ParserContext) -> AstNode {
+    let left: AstNode = parse_or(context);
+    if context.match_tok(TokenType::Assign, None) {
+        let op_str: String = context.expect_tok(TokenType::Assign, None).value.clone();
+        if op_str.eq("=") {
+            return AstNode::Assign {
+                left: Box::new(left),
+                right: Box::new(parse_assign(context)),
+            };
+        } else {
+            let bin_op_type = match op_str.as_str() {
+                "+=" => BinOpType::Add,
+                "-=" => BinOpType::Subtract,
+                "*=" => BinOpType::Multiply,
+                "%=" => BinOpType::Modulus,
+                "&=" => BinOpType::BitwiseAnd,
+                "|=" => BinOpType::BitwiseOr,
+                "^=" => BinOpType::Xor,
+                _ => panic!("Unknown assignment op {}", op_str),
+            };
+            let left_clone: AstNode = left.clone();
+            return AstNode::Assign {
+                left: Box::new(left),
+                right: Box::new(AstNode::BinOp {
+                    op: bin_op_type,
+                    left: Box::new(left_clone),
+                    right: Box::new(parse_assign(context)),
+                }),
+            };
+        }
+    } else {
+        return left;
+    }
+}
+
+fn parse_or(context: &mut ParserContext) -> AstNode {
+    let left: AstNode = parse_and(context);
+    return if context.accept_tok(TokenType::Op, Some("||")) {
+        AstNode::BinOp {
+            op: BinOpType::Or,
+            left: Box::new(left),
+            right: Box::new(parse_or(context)),
+        }
+    } else {
+        left
+    };
+}
+
+fn parse_and(context: &mut ParserContext) -> AstNode {
+    let left: AstNode = parse_bitwise_or(context);
+    return if context.accept_tok(TokenType::Op, Some("&&")) {
+        AstNode::BinOp {
+            op: BinOpType::And,
+            left: Box::new(left),
+            right: Box::new(parse_or(context)),
+        }
+    } else {
+        left
+    };
+}
+
+fn parse_bitwise_or(context: &mut ParserContext) -> AstNode {
+    let left: AstNode = parse_xor(context);
+    return if context.accept_tok(TokenType::Op, Some("|")) {
+        AstNode::BinOp {
+            op: BinOpType::BitwiseOr,
+            left: Box::new(left),
+            right: Box::new(parse_or(context)),
+        }
+    } else {
+        left
+    };
+}
+
+fn parse_xor(context: &mut ParserContext) -> AstNode {
+    let left: AstNode = parse_bitwise_and(context);
+    return if context.accept_tok(TokenType::Op, Some("^")) {
+        AstNode::BinOp {
+            op: BinOpType::Xor,
+            left: Box::new(left),
+            right: Box::new(parse_or(context)),
+        }
+    } else {
+        left
+    };
+}
+
+fn parse_bitwise_and(context: &mut ParserContext) -> AstNode {
+    let left: AstNode = parse_equality(context);
+    return if context.accept_tok(TokenType::Op, Some("&")) {
+        AstNode::BinOp {
+            op: BinOpType::BitwiseAnd,
+            left: Box::new(left),
+            right: Box::new(parse_or(context)),
+        }
+    } else {
+        left
+    };
+}
+
+fn parse_equality(context: &mut ParserContext) -> AstNode {
+    let left: AstNode = parse_comparison(context);
+    return if context.accept_tok(TokenType::Op, Some("==")) {
+        AstNode::BinOp {
+            op: BinOpType::EqualTo,
+            left: Box::new(left),
+            right: Box::new(parse_comparison(context)),
+        }
+    } else if context.accept_tok(TokenType::Op, Some("!=")) {
+        AstNode::UnaryOp {
+            op: UnaryOpType::Not,
+            target: Box::new(AstNode::BinOp {
+                op: BinOpType::EqualTo,
+                left: Box::new(left),
+                right: Box::new(parse_equality(context)),
+            }),
+        }
+    } else {
+        left
+    };
+}
+
+fn parse_comparison(context: &mut ParserContext) -> AstNode {
+    let left: AstNode = parse_additive(context);
+    return if context.accept_tok(TokenType::Op, Some(">")) {
+        AstNode::BinOp {
+            op: BinOpType::GreaterThan,
+            left: Box::new(left),
+            right: Box::new(parse_comparison(context)),
+        }
+    } else if context.accept_tok(TokenType::Op, Some(">=")) {
+        AstNode::BinOp {
+            op: BinOpType::GreaterThanOrEqual,
+            left: Box::new(left),
+            right: Box::new(parse_comparison(context)),
+        }
+    } else if context.accept_tok(TokenType::Op, Some("<")) {
+        AstNode::BinOp {
+            op: BinOpType::LesserThan,
+            left: Box::new(left),
+            right: Box::new(parse_comparison(context)),
+        }
+    } else if context.accept_tok(TokenType::Op, Some("<=")) {
+        AstNode::BinOp {
+            op: BinOpType::LesserThanOrEqual,
+            left: Box::new(left),
+            right: Box::new(parse_comparison(context)),
+        }
+    } else {
+        left
+    };
+}
+
+fn parse_additive(context: &mut ParserContext) -> AstNode {
+    let left: AstNode = parse_multiplicative(context);
+    return if context.accept_tok(TokenType::Op, Some("+")) {
+        AstNode::BinOp {
+            op: BinOpType::Add,
+            left: Box::new(left),
+            right: Box::new(parse_additive(context)),
+        }
+    } else if context.accept_tok(TokenType::Op, Some("-")) {
+        AstNode::BinOp {
+            op: BinOpType::Subtract,
+            left: Box::new(left),
+            right: Box::new(parse_additive(context)),
+        }
+    } else {
+        left
+    };
+}
+
+fn parse_multiplicative(context: &mut ParserContext) -> AstNode {
+    let left: AstNode = parse_unary(context);
+    return if context.accept_tok(TokenType::Op, Some("/")) {
+        AstNode::BinOp {
+            op: BinOpType::Divide,
+            left: Box::new(left),
+            right: Box::new(parse_additive(context)),
+        }
+    } else if context.accept_tok(TokenType::Op, Some("%")) {
+        AstNode::BinOp {
+            op: BinOpType::Multiply,
+            left: Box::new(left),
+            right: Box::new(parse_multiplicative(context)),
+        }
+    } else if context.accept_tok(TokenType::Op, Some("*")) {
+        AstNode::BinOp {
+            op: BinOpType::Multiply,
+            left: Box::new(left),
+            right: Box::new(parse_multiplicative(context)),
+        }
+    } else {
+        left
+    };
+}
+
+fn parse_unary(context: &mut ParserContext) -> AstNode {
+    return if context.accept_tok(TokenType::Op, Some("!")) {
+        AstNode::UnaryOp {
+            op: UnaryOpType::Not,
+            target: Box::new(parse_unary(context)),
+        }
+    } else if context.accept_tok(TokenType::Op, Some("--")) {
+        AstNode::UnaryOp {
+            op: UnaryOpType::DecrementPre,
+            target: Box::new(parse_unary(context)),
+        }
+    } else if context.accept_tok(TokenType::Op, Some("++")) {
+        AstNode::UnaryOp {
+            op: UnaryOpType::IncrementPre,
+            target: Box::new(parse_unary(context)),
+        }
+    } else {
+        parse_access(context, None)
+    };
+}
+
+fn parse_access(context: &mut ParserContext, left: Option<AstNode>) -> AstNode {
+    let _left = left.unwrap_or(parse_term(context));
+    return if context.accept_tok(TokenType::OpenParen, None) {
+        let mut args: Vec<AstNode> = Vec::new();
+        while !context.accept_tok(TokenType::CloseParen, None) {
+            args.push(parse_expression(context))
+        }
+        AstNode::Invoke {
+            target: Box::new(_left),
+            args: Box::new(args),
+        }
+    } else if context.accept_tok(TokenType::OpenSquare, None) {
+        let key: AstNode = parse_expression(context);
+        context.expect_tok(TokenType::CloseSquare, None);
+        AstNode::Subscript {
+            target: Box::new(_left),
+            key: Box::new(key),
+        }
+    } else if context.accept_tok(TokenType::Dot, None) {
+        let attrib = context.expect_tok(TokenType::Id, None).value.clone();
+        parse_access(
+            context,
+            Some(AstNode::AttribAccess {
+                target: Box::new(_left),
+                attrib,
+            }),
+        )
+    } else {
+        _left
+    };
+}
+
+fn parse_term(context: &mut ParserContext) -> AstNode {
+    return if context.match_tok(TokenType::Id, None) {
+        AstNode::Id {
+            value: context.expect_tok(TokenType::Id, None).value.clone(),
+        }
+    } else if context.match_tok(TokenType::Number, None) {
+        AstNode::Number {
+            value: context
+                .expect_tok(TokenType::Number, None)
+                .value
+                .parse()
+                .unwrap(),
+        }
+    } else if context.match_tok(TokenType::String, None) {
+        AstNode::String {
+            value: context.expect_tok(TokenType::String, None).value.clone(),
+        }
+    } else if context.accept_tok(TokenType::OpenParen, None) {
+        let expression = parse_expression(context);
+        context.expect_tok(TokenType::CloseParen, None);
+        expression
+    } else {
+        panic!(
+            "Unexpected {} {}",
+            context.current().unwrap().token_type,
+            context.current().unwrap().value
+        )
+    };
 }

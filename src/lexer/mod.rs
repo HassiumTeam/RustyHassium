@@ -10,14 +10,17 @@ pub struct Token {
 pub enum TokenType {
     Assign,
     CloseBrace,
+    CloseSquare,
+    CloseParen,
     Colon,
     Comma,
-    CloseParen,
     Dot,
+    EOF,
     Id,
     Number,
     Op,
     OpenBrace,
+    OpenSquare,
     OpenParen,
     Semicolon,
     String,
@@ -148,6 +151,14 @@ pub fn tokenize(code: String) -> Vec<Token> {
                     context.add_tok(TokenType::CloseParen, ")");
                     context.read();
                 }
+                '[' => {
+                    context.add_tok(TokenType::OpenSquare, "[");
+                    context.read();
+                }
+                ']' => {
+                    context.add_tok(TokenType::CloseSquare, "]");
+                    context.read();
+                }
                 ',' => {
                     context.add_tok(TokenType::Comma, ",");
                     context.read();
@@ -174,7 +185,7 @@ pub fn tokenize(code: String) -> Vec<Token> {
             }
         }
     }
-
+    context.add_tok(TokenType::EOF, "EOF");
     return context.tokens;
 }
 

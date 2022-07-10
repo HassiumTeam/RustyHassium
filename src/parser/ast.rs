@@ -1,4 +1,6 @@
+#[derive(Clone)]
 pub enum AstNode {
+    // Statement nodes
     Block {
         children: Box<Vec<AstNode>>,
     },
@@ -56,8 +58,70 @@ pub enum AstNode {
     ExpressionStatement {
         expression: Box<AstNode>,
     },
+    // Expression nodes
+    Assign {
+        left: Box<AstNode>,
+        right: Box<AstNode>,
+    },
+    AttribAccess {
+        target: Box<AstNode>,
+        attrib: String,
+    },
+    BinOp {
+        op: BinOpType,
+        left: Box<AstNode>,
+        right: Box<AstNode>,
+    },
+    Id {
+        value: String,
+    },
+    Invoke {
+        target: Box<AstNode>,
+        args: Box<Vec<AstNode>>,
+    },
+    Number {
+        value: f64,
+    },
+    String {
+        value: String,
+    },
+    Subscript {
+        target: Box<AstNode>,
+        key: Box<AstNode>,
+    },
+    UnaryOp {
+        op: UnaryOpType,
+        target: Box<AstNode>,
+    },
 }
 
+#[derive(Clone)]
+pub enum BinOpType {
+    Add,
+    And,
+    BitwiseAnd,
+    BitwiseOr,
+    Divide,
+    EqualTo,
+    GreaterThan,
+    GreaterThanOrEqual,
+    LesserThan,
+    LesserThanOrEqual,
+    Or,
+    Modulus,
+    Multiply,
+    Subtract,
+    Xor,
+}
+
+#[derive(Clone)]
+pub enum UnaryOpType {
+    DecrementPre,
+    Not,
+    IncrementPre,
+}
+
+#[derive(Clone)]
 pub struct FuncParams {
     pub names: Vec<String>,
     pub variadic: bool,
