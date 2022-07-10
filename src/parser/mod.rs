@@ -212,12 +212,12 @@ fn parse_func(context: &mut ParserContext) -> AstNode {
     };
     let body: AstNode = parse_statement(context);
 
-    return AstNode::Func {
+    AstNode::Func {
         name,
         params,
         return_type: Box::new(return_type),
         body: Box::new(body),
-    };
+    }
 }
 
 fn parse_func_params(context: &mut ParserContext) -> FuncParams {
@@ -357,25 +357,3 @@ fn parse_expression_statement(context: &mut ParserContext) -> AstNode {
 fn parse_expression(context: &mut ParserContext) -> AstNode {
     return todo!();
 }
-
-/*
-    return AstNode::Statement {
-        block: None,
-        _break: None,
-        _class: None,
-        _continue: None,
-        empty: None,
-        _for: None,
-        foreach: None,
-        func: None,
-        _if: None,
-        import: None,
-        raise: None,
-        _return: None,
-        _super: None,
-        try_catch: None,
-        _while: None,
-        expression_statement: None,
-        assign: None,
-    };
-*/
