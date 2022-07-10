@@ -51,7 +51,7 @@ impl ParserContext {
             } else {
                 panic!(
                     "Unexpected {} '{}', expected {}!",
-                    current.token_type as u32, current.value, token_type as u32
+                    current.token_type, current.value, token_type
                 );
             }
         } else {
@@ -61,7 +61,7 @@ impl ParserContext {
             } else {
                 panic!(
                     "Unexpected {} '{}', expected {} '{}'!",
-                    current.token_type as u32, current.value, token_type as u32, _value
+                    current.token_type, current.value, token_type, _value
                 )
             }
         }
@@ -79,13 +79,9 @@ pub fn parse(tokens: &mut Vec<Token>) -> AstNode {
         children.push(parse_statement(&mut context));
     }
 
-    return AstNode {
-        name: String::from("program"),
-        children,
-        strings: None,
-        ints: None,
-        params: None,
-    };
+    AstNode::Block {
+        children: Box::new(children),
+    }
 }
 
 fn parse_statement(context: &mut ParserContext) -> AstNode {
@@ -134,52 +130,36 @@ fn parse_block(context: &mut ParserContext) -> AstNode {
     while !context.accept_tok(TokenType::CloseBrace, None) {
         children.push(parse_statement(context));
     }
-    return AstNode {
-        name: String::from("block"),
-        children,
-        strings: None,
-        ints: None,
-        params: None,
-    };
+    AstNode::Block {
+        children: Box::new(children),
+    }
 }
 
 fn parse_break(context: &mut ParserContext) -> AstNode {
     context.expect_tok(TokenType::Id, Some("break"));
-    return AstNode {
-        name: String::from("break"),
-        children: Vec::new(),
-        strings: None,
-        ints: None,
-        params: None,
-    };
+    AstNode::Break
 }
 
 fn parse_class(context: &mut ParserContext) -> AstNode {
     context.expect_tok(TokenType::Id, Some("class"));
-    let mut children: Vec<AstNode> = Vec::new();
     let name: String = context.expect_tok(TokenType::Id, None).value.clone();
-    if context.accept_tok(TokenType::Id, Some("extends")) {
-        children.push(parse_expression(context));
-    }
-    children.push(parse_statement(context));
-    return AstNode {
-        name: String::from("class"),
-        children,
-        strings: Some(vec![name]),
-        ints: None,
-        params: None,
+    let extends: Option<AstNode> = if context.accept_tok(TokenType::Id, Some("extends")) {
+        Some(parse_expression(context))
+    } else {
+        None
     };
+    let body = parse_statement(context);
+
+    AstNode::Class {
+        name,
+        extends: Box::new(extends),
+        body: Box::new(body),
+    }
 }
 
 fn parse_continue(context: &mut ParserContext) -> AstNode {
     context.expect_tok(TokenType::Id, Some("continue"));
-    return AstNode {
-        name: String::from("continue"),
-        children: Vec::new(),
-        strings: None,
-        ints: None,
-        params: None,
-    };
+    AstNode::Continue
 }
 
 fn parse_for(context: &mut ParserContext) -> AstNode {
@@ -187,7 +167,7 @@ fn parse_for(context: &mut ParserContext) -> AstNode {
     let using_parens = context.accept_tok(TokenType::OpenParen, None);
     let initial = parse_expression(context);
     context.accept_tok(TokenType::Semicolon, None);
-    let expression: AstNode = parse_expression(context);
+    let condition: AstNode = parse_expression(context);
     context.accept_tok(TokenType::Semicolon, None);
     let repeated: AstNode = parse_expression(context);
     if using_parens {
@@ -195,47 +175,48 @@ fn parse_for(context: &mut ParserContext) -> AstNode {
     }
     let body: AstNode = parse_statement(context);
 
-    return AstNode {
-        name: String::from("for"),
-        children: vec![initial, expression, repeated, body],
-        strings: None,
-        ints: None,
-        params: None,
-    };
+    AstNode::For {
+        initial: Box::new(initial),
+        condition: Box::new(condition),
+        repeated: Box::new(repeated),
+        body: Box::new(body),
+    }
 }
 
 fn parse_foreach(context: &mut ParserContext) -> AstNode {
     context.expect_tok(TokenType::Id, Some("foreach"));
     let using_parens: bool = context.accept_tok(TokenType::OpenParen, None);
-    let id: String = context.expect_tok(TokenType::Id, None).value.clone();
+    let var: String = context.expect_tok(TokenType::Id, None).value.clone();
     context.expect_tok(TokenType::Id, Some("in"));
-    let expression: AstNode = parse_expression(context);
+    let target: AstNode = parse_expression(context);
     if using_parens {
         context.expect_tok(TokenType::CloseParen, None);
     }
     let body: AstNode = parse_statement(context);
 
-    return AstNode {
-        name: String::from("foreach"),
-        children: vec![expression, body],
-        strings: Some(vec![id]),
-        ints: None,
-        params: None,
-    };
+    AstNode::Foreach {
+        var,
+        target: Box::new(target),
+        body: Box::new(body),
+    }
 }
 
 fn parse_func(context: &mut ParserContext) -> AstNode {
     context.expect_tok(TokenType::Id, Some("func"));
     let name: String = context.expect_tok(TokenType::Id, None).value.clone();
     let params: FuncParams = parse_func_params(context);
+    let return_type: Option<AstNode> = if context.accept_tok(TokenType::Colon, None) {
+        Some(parse_expression(context))
+    } else {
+        None
+    };
     let body: AstNode = parse_statement(context);
 
-    return AstNode {
-        name: String::from("func"),
-        children: vec![body],
-        strings: Some(vec![name]),
-        ints: None,
-        params: Some(params),
+    return AstNode::Func {
+        name,
+        params,
+        return_type: Box::new(return_type),
+        body: Box::new(body),
     };
 }
 
@@ -263,111 +244,91 @@ fn parse_func_params(context: &mut ParserContext) -> FuncParams {
             context.expect_tok(TokenType::Comma, None);
         }
     }
-    let return_type: Option<AstNode> = if context.accept_tok(TokenType::Colon, None) {
-        Some(parse_expression(context))
-    } else {
-        None
-    };
 
-    return FuncParams {
+    FuncParams {
         names,
         types: Box::new(types),
         variadic,
-        return_type: Box::new(return_type),
-    };
+    }
 }
 
 fn parse_if(context: &mut ParserContext) -> AstNode {
     context.expect_tok(TokenType::Id, Some("if"));
-    let mut children: Vec<AstNode> = Vec::new();
     let using_parens: bool = context.accept_tok(TokenType::OpenParen, None);
-    children.push(parse_expression(context));
+    let predicate = parse_expression(context);
     if using_parens {
         context.expect_tok(TokenType::CloseParen, None);
     }
-    children.push(parse_statement(context));
-    if context.accept_tok(TokenType::Id, Some("else")) {
-        children.push(parse_statement(context));
-    }
-
-    return AstNode {
-        name: String::from("if"),
-        children: children,
-        strings: None,
-        ints: None,
-        params: None,
+    let body = parse_statement(context);
+    let else_body: Option<AstNode> = if context.accept_tok(TokenType::Id, Some("else")) {
+        Some(parse_statement(context))
+    } else {
+        None
     };
+
+    AstNode::If {
+        predicate: Box::new(predicate),
+        body: Box::new(body),
+        else_body: Box::new(else_body),
+    }
 }
 
 fn parse_import(context: &mut ParserContext) -> AstNode {
     context.expect_tok(TokenType::Id, Some("import"));
-    return AstNode {
-        name: String::from("import"),
-        children: vec![parse_expression(context)],
-        strings: None,
-        ints: None,
-        params: None,
-    };
+    let target = parse_expression(context);
+    AstNode::Import {
+        target: Box::new(target),
+    }
 }
 
 fn parse_raise(context: &mut ParserContext) -> AstNode {
     context.expect_tok(TokenType::Id, Some("raise"));
-    return AstNode {
-        name: String::from("raise"),
-        children: vec![parse_expression(context)],
-        strings: None,
-        ints: None,
-        params: None,
-    };
+    let value = parse_expression(context);
+    AstNode::Raise {
+        value: Box::new(value),
+    }
 }
 
 fn parse_return(context: &mut ParserContext) -> AstNode {
     context.expect_tok(TokenType::Id, Some("return"));
-    return AstNode {
-        name: String::from("return"),
-        children: vec![parse_expression(context)],
-        strings: None,
-        ints: None,
-        params: None,
-    };
+    let value: AstNode = parse_expression(context);
+    AstNode::Return {
+        value: Box::new(value),
+    }
 }
 
 fn parse_super(context: &mut ParserContext) -> AstNode {
     context.expect_tok(TokenType::Id, Some("super"));
     context.expect_tok(TokenType::OpenParen, None);
-    let mut children: Vec<AstNode> = Vec::new();
+    let mut args: Vec<AstNode> = Vec::new();
     while !context.accept_tok(TokenType::CloseParen, None) {
-        children.push(parse_expression(context));
+        args.push(parse_expression(context));
         if !context.match_tok(TokenType::CloseParen, None) {
             context.expect_tok(TokenType::Comma, None);
         }
     }
-    return AstNode {
-        name: String::from("super"),
-        children,
-        strings: None,
-        ints: None,
-        params: None,
-    };
+
+    AstNode::Super {
+        args: Box::new(args),
+    }
 }
 
 fn parse_try_catch(context: &mut ParserContext) -> AstNode {
     context.expect_tok(TokenType::Id, Some("try"));
-    let _try: AstNode = parse_statement(context);
+    let try_body: AstNode = parse_statement(context);
     context.expect_tok(TokenType::Id, Some("catch"));
-    let strings: Option<Vec<String>> = if context.accept_tok(TokenType::OpenParen, None) {
-        Some(vec![context.expect_tok(TokenType::Id, None).value.clone()])
+    let value: Option<String> = if context.accept_tok(TokenType::OpenParen, None) {
+        Some(context.expect_tok(TokenType::Id, None).value.clone())
     } else {
         None
     };
-    let _catch: AstNode = parse_statement(context);
-    return AstNode {
-        name: String::from("try_catch"),
-        children: vec![_try, _catch],
-        strings,
-        ints: None,
-        params: None,
-    };
+    let catch_body: AstNode = parse_statement(context);
+
+    AstNode::TryCatch {
+        try_body: Box::new(try_body),
+        value,
+        catch_body: Box::new(catch_body),
+    }
 }
 
 fn parse_while(context: &mut ParserContext) -> AstNode {
@@ -378,23 +339,19 @@ fn parse_while(context: &mut ParserContext) -> AstNode {
         context.expect_tok(TokenType::CloseParen, None);
     }
     let body: AstNode = parse_statement(context);
-    return AstNode {
-        name: String::from("while"),
-        children: vec![condition, body],
-        strings: None,
-        ints: None,
-        params: None,
-    };
+
+    AstNode::While {
+        condition: Box::new(condition),
+        body: Box::new(body),
+    }
 }
 
 fn parse_expression_statement(context: &mut ParserContext) -> AstNode {
-    return AstNode {
-        name: String::from("expression_statement"),
-        children: vec![parse_expression(context)],
-        strings: None,
-        ints: None,
-        params: None,
-    };
+    let expression = parse_expression(context);
+    context.accept_tok(TokenType::Semicolon, None);
+    AstNode::ExpressionStatement {
+        expression: Box::new(expression),
+    }
 }
 
 fn parse_expression(context: &mut ParserContext) -> AstNode {

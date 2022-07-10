@@ -1,10 +1,12 @@
+use std::fmt;
+
 #[derive(Clone)]
 pub struct Token {
     pub token_type: TokenType,
     pub value: String,
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum TokenType {
     Assign,
     CloseBrace,
@@ -20,6 +22,12 @@ pub enum TokenType {
     Semicolon,
     String,
     Variadic,
+}
+
+impl fmt::Display for TokenType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
 }
 
 struct LexerContext {
@@ -227,10 +235,6 @@ fn read_str(context: &mut LexerContext, delin: char) {
 pub fn print_tokens(tokens: &mut Vec<Token>) {
     println!("Lexer tokens:");
     for token in tokens {
-        println!(
-            "Type: {}, Value: {}",
-            token.token_type.clone() as u32,
-            token.value
-        );
+        println!("Type: {}, Value: {}", token.token_type.clone(), token.value);
     }
 }
