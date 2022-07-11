@@ -2,7 +2,7 @@ mod ast;
 
 use crate::lexer::{Token, TokenType};
 
-use self::ast::{AstNode, BinOpType, FuncParams, UnaryOpType};
+pub use self::ast::{AstNode, BinOpType, FuncParams, UnaryOpType};
 
 struct ParserContext {
     tokens: Vec<Token>,
