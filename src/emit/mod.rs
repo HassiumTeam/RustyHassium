@@ -91,7 +91,7 @@ fn visit(context: &mut EmitContext, node: AstNode) {
         AstNode::ExpressionStatement { expression } => {
             visit_expression_statement(context, *expression)
         }
-        AstNode::Assign { left: _, right: _ } => visit_assign(context, node_clone),
+        AstNode::Assign { left, right } => visit_assign(context, *left, *right),
         AstNode::AttribAccess { target, attrib } => visit_attrib_access(context, *target, attrib),
         AstNode::BinOp { op, left, right } => visit_bin_op(context, op, *left, *right),
         AstNode::Id { value } => visit_id(context, value),
@@ -221,7 +221,22 @@ fn visit_expression_statement(context: &mut EmitContext, expression: AstNode) {
     visit(context, expression);
     context.add_inst(VMInstruction::Pop);
 }
-fn visit_assign(context: &mut EmitContext, node: AstNode) {}
+fn visit_assign(context: &mut EmitContext, left: AstNode, right: AstNode) {
+    visit(context, right);
+    match left {
+        AstNode::Id { value } => context.add_inst(VMInstruction::StoreId { id: value }),
+        AstNode::Subscript { target, key } => {
+            visit(context, *key);
+            visit(context, *target);
+            context.add_inst(VMInstruction::StoreSubscript);
+        }
+        AstNode::AttribAccess { target, attrib } => {
+            visit(context, *target);
+            context.add_inst(VMInstruction::StoreAttrib { attrib });
+        }
+        _ => (),
+    }
+}
 fn visit_attrib_access(context: &mut EmitContext, target: AstNode, attrib: String) {
     visit(context, target);
     context.add_inst(VMInstruction::LoadAttrib { attrib });
