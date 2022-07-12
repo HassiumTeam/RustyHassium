@@ -8,6 +8,7 @@ pub enum VMInstruction {
     Call { arg_count: u32 },
     Continue,
     Import,
+    Invoke { arg_count: u32 },
     Iter,
     IterFull,
     IterNext,

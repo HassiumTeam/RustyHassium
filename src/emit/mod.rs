@@ -99,25 +99,18 @@ fn visit(context: &mut EmitContext, node: AstNode) {
             catch_body: _,
         } => visit_try_catch(context, node_clone),
         AstNode::While { condition, body } => visit_while(context, *condition, *body),
-        AstNode::ExpressionStatement { expression: _ } => {
-            visit_expression_statement(context, node_clone)
+        AstNode::ExpressionStatement { expression } => {
+            visit_expression_statement(context, *expression)
         }
         AstNode::Assign { left: _, right: _ } => visit_assign(context, node_clone),
-        AstNode::AttribAccess {
-            target: _,
-            attrib: _,
-        } => visit_attrib_access(context, node_clone),
-        AstNode::BinOp {
-            op: _,
-            left: _,
-            right: _,
-        } => visit_bin_op(context, node_clone),
-        AstNode::Id { value: _ } => visit_id(context, node_clone),
-        AstNode::Invoke { target: _, args: _ } => visit_invoke(context, node_clone),
-        AstNode::Number { value: _ } => visit_number(context, node_clone),
-        AstNode::String { value: _ } => visit_string(context, node_clone),
-        AstNode::Subscript { target: _, key: _ } => visit_subscript(context, node_clone),
-        AstNode::UnaryOp { op: _, target: _ } => visit_unary_op(context, node_clone),
+        AstNode::AttribAccess { target, attrib } => visit_attrib_access(context, *target, attrib),
+        AstNode::BinOp { op, left, right } => visit_bin_op(context, op, *left, *right),
+        AstNode::Id { value } => visit_id(context, value),
+        AstNode::Invoke { target, args } => visit_invoke(context, *target, *args),
+        AstNode::Number { value } => visit_number(context, value),
+        AstNode::String { value } => visit_string(context, value),
+        AstNode::Subscript { target, key } => visit_subscript(context, *key, *target),
+        AstNode::UnaryOp { op, target } => visit_unary_op(context, op, *target),
     }
 }
 
@@ -199,13 +192,46 @@ fn visit_while(context: &mut EmitContext, condition: AstNode, body: AstNode) {
     context.add_inst(VMInstruction::Jump { to: body_label });
     context.place_label(end_label);
 }
-fn visit_expression_statement(context: &mut EmitContext, node: AstNode) {}
+fn visit_expression_statement(context: &mut EmitContext, expression: AstNode) {
+    visit(context, expression);
+    context.add_inst(VMInstruction::Pop);
+}
 fn visit_assign(context: &mut EmitContext, node: AstNode) {}
-fn visit_attrib_access(context: &mut EmitContext, node: AstNode) {}
-fn visit_bin_op(context: &mut EmitContext, node: AstNode) {}
-fn visit_id(context: &mut EmitContext, node: AstNode) {}
-fn visit_invoke(context: &mut EmitContext, node: AstNode) {}
-fn visit_number(context: &mut EmitContext, node: AstNode) {}
-fn visit_string(context: &mut EmitContext, node: AstNode) {}
-fn visit_subscript(context: &mut EmitContext, node: AstNode) {}
-fn visit_unary_op(context: &mut EmitContext, node: AstNode) {}
+fn visit_attrib_access(context: &mut EmitContext, target: AstNode, attrib: String) {
+    visit(context, target);
+    context.add_inst(VMInstruction::LoadAttrib { attrib });
+}
+fn visit_bin_op(context: &mut EmitContext, op: BinOpType, left: AstNode, right: AstNode) {
+    visit(context, right);
+    visit(context, left);
+    context.add_inst(VMInstruction::BinOp { op });
+}
+fn visit_id(context: &mut EmitContext, value: String) {
+    context.add_inst(VMInstruction::LoadId { id: value });
+}
+fn visit_invoke(context: &mut EmitContext, target: AstNode, _args: Vec<AstNode>) {
+    let mut args = _args.clone();
+    args.reverse();
+    for arg in args {
+        visit(context, arg.to_owned());
+    }
+    visit(context, target);
+    context.add_inst(VMInstruction::Invoke {
+        arg_count: _args.len() as u32,
+    });
+}
+fn visit_number(context: &mut EmitContext, value: f64) {
+    context.add_inst(VMInstruction::LoadNumber { value });
+}
+fn visit_string(context: &mut EmitContext, value: String) {
+    context.add_inst(VMInstruction::LoadString { value });
+}
+fn visit_subscript(context: &mut EmitContext, key: AstNode, target: AstNode) {
+    visit(context, key);
+    visit(context, target);
+    context.add_inst(VMInstruction::LoadSubscript);
+}
+fn visit_unary_op(context: &mut EmitContext, op: UnaryOpType, target: AstNode) {
+    visit(context, target);
+    context.add_inst(VMInstruction::UnaryOp { op });
+}
