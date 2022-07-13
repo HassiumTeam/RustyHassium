@@ -27,15 +27,13 @@ pub enum VMInstruction {
         arg_count: u32,
     },
     Iter,
-    IterFull,
-    IterNext,
+    IterNext {
+        jump_if_full: u32,
+    },
     Jump {
         to: u32,
     },
     JumpIfFalse {
-        to: u32,
-    },
-    JumpIfTrue {
         to: u32,
     },
     LoadAttrib {

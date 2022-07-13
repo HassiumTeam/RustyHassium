@@ -8,6 +8,7 @@ use crate::{
 pub struct EmitContext {
     code_obj_stack: VecDeque<CodeObj>,
     label_index: u32,
+    tmp_index: u32,
 }
 
 impl EmitContext {
@@ -33,12 +34,18 @@ impl EmitContext {
             .labels
             .insert(label, code_obj.instructions.len() as u32 - 1);
     }
+
+    fn tmp_symbol(&mut self) -> String {
+        self.tmp_index += 1;
+        return format!("_{}", self.tmp_index);
+    }
 }
 
 pub fn build_module(ast: AstNode) {
     let mut context: EmitContext = EmitContext {
         code_obj_stack: VecDeque::new(),
         label_index: 0,
+        tmp_index: 0,
     };
     context.code_obj_stack.push_front(CodeObj::new(false));
     visit(&mut context, ast);
@@ -55,18 +62,14 @@ fn visit(context: &mut EmitContext, node: AstNode) {
             body,
         } => visit_class(context, name, *extends, *body),
         AstNode::Continue => visit_continue(context),
-        AstNode::Empty => visit_empty(context),
+        AstNode::Empty => (),
         AstNode::For {
             initial,
             condition,
             repeated,
             body,
         } => visit_for(context, *initial, *condition, *repeated, *body),
-        AstNode::Foreach {
-            var: _,
-            target: _,
-            body: _,
-        } => visit_foreach(context, node_clone),
+        AstNode::Foreach { var, target, body } => visit_foreach(context, var, *target, *body),
         AstNode::Func {
             name,
             params,
@@ -128,7 +131,6 @@ fn visit_class(context: &mut EmitContext, name: String, extends: Option<AstNode>
 fn visit_continue(context: &mut EmitContext) {
     context.add_inst(VMInstruction::Continue);
 }
-fn visit_empty(context: &mut EmitContext) {}
 fn visit_for(
     context: &mut EmitContext,
     initial: AstNode,
@@ -147,7 +149,22 @@ fn visit_for(
     context.add_inst(VMInstruction::Jump { to: body_label });
     context.place_label(end_label);
 }
-fn visit_foreach(context: &mut EmitContext, node: AstNode) {}
+fn visit_foreach(context: &mut EmitContext, var: String, target: AstNode, body: AstNode) {
+    let body_label = context.create_label();
+    let end_label = context.create_label();
+    let tmp = context.tmp_symbol();
+
+    visit(context, target);
+    context.add_inst(VMInstruction::Iter);
+    context.add_inst(VMInstruction::StoreId { id: tmp });
+    context.place_label(body_label);
+    context.add_inst(VMInstruction::IterNext {
+        jump_if_full: end_label,
+    });
+    context.add_inst(VMInstruction::StoreId { id: var });
+    visit(context, body);
+    context.add_inst(VMInstruction::Jump { to: body_label });
+}
 fn visit_func(
     context: &mut EmitContext,
     name: String,
