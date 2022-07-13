@@ -1,8 +1,8 @@
-use std::{borrow::BorrowMut, collections::VecDeque};
+use std::collections::VecDeque;
 
 use crate::{
     parser::{AstNode, BinOpType, FuncParams, UnaryOpType},
-    runtime::{CodeObj, VMInstruction},
+    runtime::vm::{CodeObj, VMInstruction},
 };
 
 pub struct EmitContext {
@@ -264,7 +264,10 @@ fn visit_bin_op(context: &mut EmitContext, op: BinOpType, left: AstNode, right: 
     context.add_inst(VMInstruction::BinOp { op });
 }
 fn visit_id(context: &mut EmitContext, value: String) {
-    context.add_inst(VMInstruction::LoadId { id: value });
+    match value.as_str() {
+        "self" => context.add_inst(VMInstruction::SelfRef),
+        _ => context.add_inst(VMInstruction::LoadId { id: value }),
+    };
 }
 fn visit_invoke(context: &mut EmitContext, target: AstNode, _args: Vec<AstNode>) {
     let mut args = _args.clone();
