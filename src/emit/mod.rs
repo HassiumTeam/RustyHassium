@@ -41,7 +41,7 @@ impl EmitContext {
     }
 }
 
-pub fn build_module(ast: AstNode) {
+pub fn build_module(ast: AstNode) -> CodeObj {
     let mut context: EmitContext = EmitContext {
         code_obj_stack: VecDeque::new(),
         label_index: 0,
@@ -49,6 +49,7 @@ pub fn build_module(ast: AstNode) {
     };
     context.code_obj_stack.push_front(CodeObj::new(false));
     visit(&mut context, ast);
+    return context.code_obj_stack.pop_front().unwrap();
 }
 
 fn visit(context: &mut EmitContext, node: AstNode) {
@@ -111,9 +112,7 @@ fn visit_block(context: &mut EmitContext, children: Vec<AstNode>) {
         visit(context, child)
     }
 }
-fn visit_break(context: &mut EmitContext) {
-    context.add_inst(VMInstruction::Break);
-}
+fn visit_break(context: &mut EmitContext) {}
 fn visit_class(context: &mut EmitContext, name: String, extends: Option<AstNode>, body: AstNode) {
     context.code_obj_stack.push_front(CodeObj::new(true));
     visit(context, body);
@@ -128,9 +127,7 @@ fn visit_class(context: &mut EmitContext, name: String, extends: Option<AstNode>
         does_extend,
     })
 }
-fn visit_continue(context: &mut EmitContext) {
-    context.add_inst(VMInstruction::Continue);
-}
+fn visit_continue(context: &mut EmitContext) {}
 fn visit_for(
     context: &mut EmitContext,
     initial: AstNode,

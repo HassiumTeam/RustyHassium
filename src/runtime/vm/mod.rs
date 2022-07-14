@@ -1,12 +1,14 @@
+use core::fmt;
 use std::collections::HashMap;
 
 use crate::parser::{BinOpType, UnaryOpType};
+use crate::runtime::object::HassiumObject;
 
+#[derive(Debug)]
 pub enum VMInstruction {
     BinOp {
         op: BinOpType,
     },
-    Break,
     BuildClass {
         name: String,
         code_obj: CodeObj,
@@ -18,7 +20,6 @@ pub enum VMInstruction {
         param_names: Vec<String>,
         has_return_type: bool,
     },
-    Continue,
     Import,
     Invoke {
         arg_count: u32,
@@ -65,6 +66,13 @@ pub enum VMInstruction {
     },
 }
 
+impl fmt::Display for VMInstruction {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+#[derive(Debug)]
 pub struct CodeObj {
     pub is_class: bool,
     pub instructions: Vec<VMInstruction>,
@@ -96,15 +104,15 @@ impl VMContext {
         }
     }
 
-    pub fn run(&mut self) {
-        let instructions: Vec<VMInstruction> = Vec::new();
+    pub fn run(&mut self, code: &CodeObj) {
+        let mut stack: Vec<HassiumObject> = Vec::new();
 
-        while self.pos < instructions.len() as u32 {
-            let inst: &VMInstruction = instructions.get(self.pos as usize).unwrap();
+        while self.pos < code.instructions.len() as u32 {
+            let inst: &VMInstruction = code.instructions.get(self.pos as usize).unwrap();
+            println!("{}", inst);
 
             match inst {
                 VMInstruction::BinOp { op } => todo!(),
-                VMInstruction::Break => todo!(),
                 VMInstruction::BuildClass {
                     name,
                     code_obj,
@@ -116,7 +124,6 @@ impl VMContext {
                     param_names,
                     has_return_type,
                 } => todo!(),
-                VMInstruction::Continue => todo!(),
                 VMInstruction::Import => todo!(),
                 VMInstruction::Invoke { arg_count } => todo!(),
                 VMInstruction::Iter => todo!(),
@@ -128,7 +135,9 @@ impl VMContext {
                 VMInstruction::LoadNumber { value } => todo!(),
                 VMInstruction::LoadString { value } => todo!(),
                 VMInstruction::LoadSubscript => todo!(),
-                VMInstruction::Pop => todo!(),
+                VMInstruction::Pop => {
+                    stack.pop();
+                }
                 VMInstruction::Raise => todo!(),
                 VMInstruction::Return => todo!(),
                 VMInstruction::SelfRef => todo!(),

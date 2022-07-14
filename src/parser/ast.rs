@@ -95,7 +95,7 @@ pub enum AstNode {
     },
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum BinOpType {
     Add,
     And,
@@ -114,7 +114,7 @@ pub enum BinOpType {
     Xor,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum UnaryOpType {
     DecrementPre,
     Not,
