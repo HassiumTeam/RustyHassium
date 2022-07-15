@@ -1,11 +1,10 @@
 use core::fmt;
-use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::rc::Rc;
 
 use crate::parser::{BinOpType, UnaryOpType};
 use crate::runtime::object::defaults::{new_hassium_number, new_hassium_string};
-use crate::runtime::object::{HassiumObject, HassiumObjectContext};
+use crate::runtime::object::HassiumObject;
 
 use super::object::defaults::get_defaults;
 use super::object::ObjectId;
@@ -115,6 +114,11 @@ impl VMContext {
     }
 
     pub fn deref(&self, id: ObjectId) -> &Rc<Box<HassiumObject>> {
+        println!(
+            "Does it contain {}, {}",
+            id,
+            self.all_objects.contains_key(&id)
+        );
         self.all_objects.get(&id).unwrap()
     }
 
@@ -154,14 +158,18 @@ impl VMContext {
                 VMInstruction::JumpIfFalse { to } => todo!(),
                 VMInstruction::LoadAttrib { attrib } => todo!(),
                 VMInstruction::LoadId { id } => {
+                    let mut found_id: bool = false;
                     for frame in &self.stack_frame {
                         let option = frame.get(id);
                         if option.is_some() {
                             stack.push(*option.unwrap());
+                            found_id = true;
                             break;
                         }
                     }
-                    // panic!("ID {} could not be resolved!", id)
+                    if !found_id {
+                        panic!("ID {} could not be resolved!", id)
+                    }
                 }
                 VMInstruction::LoadNumber { value } => {
                     let id = new_hassium_number(self, *value).id;

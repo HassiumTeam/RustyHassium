@@ -1,20 +1,11 @@
 pub mod defaults;
 
 use core::fmt;
-use std::{
-    borrow::{Borrow, BorrowMut},
-    cell::RefCell,
-    collections::HashMap,
-    fmt::Display,
-    ops::Add,
-    rc::Rc,
-    sync::{Arc, Mutex},
-};
+use std::{collections::HashMap, ops::Add, rc::Rc};
 
 use super::vm::VMContext;
 
-static HASSIUM_OBJECT_ID: usize = 0;
-
+static mut HASSIUM_OBJECT_ID: usize = 0;
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct ObjectId(usize);
 
@@ -49,15 +40,19 @@ impl HassiumObject {
         context: HassiumObjectContext,
         self_ref: Option<HassiumObject>,
     ) -> HassiumObject {
-        let id = ObjectId(HASSIUM_OBJECT_ID.add(1));
-        let ret = HassiumObject {
-            id,
-            context,
-            attributes: HashMap::new(),
-            self_ref: Box::new(self_ref),
-        };
-        vm.all_objects.insert(id, Rc::new(Box::new(ret.clone())));
-        return ret;
+        unsafe {
+            let id = ObjectId(HASSIUM_OBJECT_ID);
+            let ret = HassiumObject {
+                id,
+                context,
+                attributes: HashMap::new(),
+                self_ref: Box::new(self_ref),
+            };
+            HASSIUM_OBJECT_ID = HASSIUM_OBJECT_ID.add(1);
+            println!("Inserting with id {}", id);
+            vm.all_objects.insert(id, Rc::new(Box::new(ret.clone())));
+            return ret;
+        }
     }
 
     pub fn getattr(&self, name: &str) -> ObjectId {

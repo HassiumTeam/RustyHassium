@@ -7,6 +7,7 @@ mod parser;
 mod runtime;
 
 fn main() {
+    std::env::set_var("RUST_BACKTRACE", "1");
     let mut tokens = lexer::tokenize("println(\"Hello, Hassium!\")".to_string());
     lexer::print_tokens(&mut tokens);
     let module = emit::build_module(parser::parse(&mut tokens));

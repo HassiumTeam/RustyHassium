@@ -1,4 +1,4 @@
-use std::{borrow::Borrow, collections::HashMap};
+use std::collections::HashMap;
 
 use crate::runtime::object::ObjectId;
 use crate::runtime::vm::VMContext;
@@ -62,6 +62,7 @@ fn println(vm: &mut VMContext, _obj_id: ObjectId, args: Vec<ObjectId>) -> Object
 
 // Common instance methods on types
 fn to_number(vm: &mut VMContext, obj_id: ObjectId, _args: Vec<ObjectId>) -> ObjectId {
+    println!("to_number");
     let obj = vm.deref(obj_id);
     match &obj.context {
         HassiumObjectContext::Function(_) => panic!(),
