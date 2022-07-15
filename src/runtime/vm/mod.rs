@@ -1,8 +1,14 @@
 use core::fmt;
+use std::borrow::Borrow;
 use std::collections::HashMap;
+use std::rc::Rc;
 
 use crate::parser::{BinOpType, UnaryOpType};
-use crate::runtime::object::HassiumObject;
+use crate::runtime::object::defaults::{new_hassium_number, new_hassium_string};
+use crate::runtime::object::{HassiumObject, HassiumObjectContext};
+
+use super::object::defaults::get_defaults;
+use super::object::ObjectId;
 
 #[derive(Debug)]
 pub enum VMInstruction {
@@ -89,23 +95,31 @@ impl CodeObj {
     }
 }
 
-pub struct StackFrame {}
-
+#[derive(Clone)]
 pub struct VMContext {
-    stack_frame: Vec<StackFrame>,
+    pub all_objects: HashMap<ObjectId, Rc<Box<HassiumObject>>>,
+    stack_frame: Vec<HashMap<String, ObjectId>>,
     pos: u32,
 }
 
 impl VMContext {
     pub fn new() -> VMContext {
-        VMContext {
+        let mut ret = VMContext {
+            all_objects: HashMap::new(),
             stack_frame: Vec::new(),
             pos: 0,
-        }
+        };
+        ret.stack_frame.push(get_defaults(&mut ret.clone()));
+
+        return ret;
+    }
+
+    pub fn deref(&self, id: ObjectId) -> &Rc<Box<HassiumObject>> {
+        self.all_objects.get(&id).unwrap()
     }
 
     pub fn run(&mut self, code: &CodeObj) {
-        let mut stack: Vec<HassiumObject> = Vec::new();
+        let mut stack: Vec<ObjectId> = Vec::new();
 
         while self.pos < code.instructions.len() as u32 {
             let inst: &VMInstruction = code.instructions.get(self.pos as usize).unwrap();
@@ -125,15 +139,38 @@ impl VMContext {
                     has_return_type,
                 } => todo!(),
                 VMInstruction::Import => todo!(),
-                VMInstruction::Invoke { arg_count } => todo!(),
+                VMInstruction::Invoke { arg_count } => {
+                    let obj = stack.pop().unwrap();
+                    let mut args: Vec<ObjectId> = Vec::new();
+                    for _i in 0..*arg_count {
+                        args.push(stack.pop().unwrap());
+                    }
+                    args.reverse();
+                    stack.push(obj.invoke(self, args))
+                }
                 VMInstruction::Iter => todo!(),
                 VMInstruction::IterNext { jump_if_full } => todo!(),
-                VMInstruction::Jump { to } => todo!(),
+                VMInstruction::Jump { to } => self.pos = *to,
                 VMInstruction::JumpIfFalse { to } => todo!(),
                 VMInstruction::LoadAttrib { attrib } => todo!(),
-                VMInstruction::LoadId { id } => todo!(),
-                VMInstruction::LoadNumber { value } => todo!(),
-                VMInstruction::LoadString { value } => todo!(),
+                VMInstruction::LoadId { id } => {
+                    for frame in &self.stack_frame {
+                        let option = frame.get(id);
+                        if option.is_some() {
+                            stack.push(*option.unwrap());
+                            break;
+                        }
+                    }
+                    // panic!("ID {} could not be resolved!", id)
+                }
+                VMInstruction::LoadNumber { value } => {
+                    let id = new_hassium_number(self, *value).id;
+                    stack.push(self.all_objects.get(&id).unwrap().id);
+                }
+                VMInstruction::LoadString { value } => {
+                    let id = &new_hassium_string(self, value.to_string()).id;
+                    stack.push(self.all_objects.get(id).unwrap().id);
+                }
                 VMInstruction::LoadSubscript => todo!(),
                 VMInstruction::Pop => {
                     stack.pop();
@@ -147,6 +184,8 @@ impl VMContext {
                 VMInstruction::Super { arg_count } => todo!(),
                 VMInstruction::UnaryOp { op } => todo!(),
             }
+
+            self.pos += 1;
         }
     }
 }

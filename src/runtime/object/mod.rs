@@ -1,130 +1,75 @@
-use std::{any::Any, cell::RefCell, collections::HashMap, ops::Add, rc::Rc};
+pub mod defaults;
 
-pub struct HassiumObject {
-    pub content: HassiumObjectContent,
-    pub parent: HassiumObjectRef,
-    pub attributes: Rc<RefCell<HashMap<String, HassiumObjectRef>>>,
-}
+use core::fmt;
+use std::{
+    borrow::{Borrow, BorrowMut},
+    cell::RefCell,
+    collections::HashMap,
+    fmt::Display,
+    ops::Add,
+    rc::Rc,
+    sync::{Arc, Mutex},
+};
 
-impl HassiumObject {
-    pub fn new(content: HassiumObjectContent, parent: HassiumObjectRef) -> HassiumObject {
-        HassiumObject {
-            content,
-            parent,
-            attributes: Rc::new(RefCell::new(HashMap::new())),
-        }
+use super::vm::VMContext;
+
+static HASSIUM_OBJECT_ID: usize = 0;
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct ObjectId(usize);
+
+impl fmt::Display for ObjectId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
     }
 }
 
-pub enum HassiumObjectContent {
+#[derive(Clone)]
+pub enum HassiumObjectContext {
+    Function(fn(&mut VMContext, ObjectId, args: Vec<ObjectId>) -> ObjectId),
     None,
-    True,
-    False,
-    Anonymous,
     Number(f64),
     String(String),
-    List(Vec<HassiumObjectRef>),
     Type(String),
 }
 
-static NEXT_HASSIUM_OBJECT_REF_ID: u64 = 0;
 #[derive(Clone)]
-pub struct HassiumObjectRef {
-    id: u64,
+pub struct HassiumObject {
+    pub id: ObjectId,
+    pub context: HassiumObjectContext,
+    pub self_ref: Box<Option<HassiumObject>>,
+    pub attributes: HashMap<String, ObjectId>,
 }
 
-impl HassiumObjectRef {
-    pub fn new() -> HassiumObjectRef {
-        HassiumObjectRef {
-            id: NEXT_HASSIUM_OBJECT_REF_ID.add(1),
-        }
+unsafe impl Sync for HassiumObject {}
+
+impl HassiumObject {
+    pub fn new(
+        vm: &mut VMContext,
+        context: HassiumObjectContext,
+        self_ref: Option<HassiumObject>,
+    ) -> HassiumObject {
+        let id = ObjectId(HASSIUM_OBJECT_ID.add(1));
+        let ret = HassiumObject {
+            id,
+            context,
+            attributes: HashMap::new(),
+            self_ref: Box::new(self_ref),
+        };
+        vm.all_objects.insert(id, Rc::new(Box::new(ret.clone())));
+        return ret;
     }
 
-    pub fn set_attr(
-        &self,
-        ref_mapper: &mut ObjectRefMapper,
-        name: String,
-        value: HassiumObjectRef,
-    ) {
-        ref_mapper
-            .get(self)
-            .attributes
-            .borrow_mut()
-            .insert(name, value);
-    }
-}
-
-pub struct ObjectRefMapper {
-    objects: HashMap<u64, HassiumObject>,
-}
-
-impl ObjectRefMapper {
-    pub fn new() -> ObjectRefMapper {
-        ObjectRefMapper {
-            objects: HashMap::new(),
-        }
-    }
-
-    pub fn new_ref(&mut self, obj: HassiumObject) -> HassiumObjectRef {
-        let obj_ref: HassiumObjectRef = HassiumObjectRef::new();
-        self.objects.insert(obj_ref.id, obj);
-        obj_ref
-    }
-
-    pub fn set_ref(&mut self, obj_ref: HassiumObjectRef, obj: HassiumObject) {
-        self.objects.insert(obj_ref.id, obj);
-    }
-
-    pub fn get(&self, obj_ref: &HassiumObjectRef) -> &HassiumObject {
-        self.objects.get(&obj_ref.id).unwrap()
-    }
-
-    pub fn get_mut(&mut self, obj_ref: &HassiumObjectRef) -> &mut HassiumObject {
-        self.objects.get_mut(&obj_ref.id).unwrap()
+    pub fn getattr(&self, name: &str) -> ObjectId {
+        *self.attributes.get(name).unwrap()
     }
 }
 
-pub struct DefaultTypes {
-    pub object: HassiumObjectRef,
-    pub type_: HassiumObjectRef,
-    pub none: HassiumObjectRef,
-    pub string: HassiumObjectRef,
-    pub number: HassiumObjectRef,
-    pub map: HashMap<String, HassiumObjectRef>,
-}
-
-impl DefaultTypes {
-    pub fn new(ref_mapper: &mut ObjectRefMapper) -> DefaultTypes {
-        let object: HassiumObjectRef = HassiumObjectRef::new();
-        let type_: HassiumObjectRef = HassiumObjectRef::new();
-
-        let none: HassiumObjectRef = ref_mapper.new_ref(HassiumObject::new(
-            HassiumObjectContent::None,
-            type_.clone(),
-        ));
-        let string: HassiumObjectRef = ref_mapper.new_ref(HassiumObject::new(
-            HassiumObjectContent::Type(String::from("string")),
-            type_.clone(),
-        ));
-        let number: HassiumObjectRef = ref_mapper.new_ref(HassiumObject::new(
-            HassiumObjectContent::Type(String::from("number")),
-            type_.clone(),
-        ));
-
-        let mut map: HashMap<String, HassiumObjectRef> = HashMap::new();
-        map.insert(String::from("object"), object.clone());
-        map.insert(String::from("type"), type_.clone());
-        map.insert(String::from("none"), none.clone());
-        map.insert(String::from("string"), string.clone());
-        map.insert(String::from("number"), number.clone());
-
-        DefaultTypes {
-            object,
-            type_,
-            none,
-            string,
-            number,
-            map,
+impl ObjectId {
+    pub fn invoke(&self, vm: &mut VMContext, args: Vec<ObjectId>) -> ObjectId {
+        match vm.deref(*self).context {
+            HassiumObjectContext::Function(func) => func(vm, *self, args),
+            _ => panic!(""),
         }
     }
 }

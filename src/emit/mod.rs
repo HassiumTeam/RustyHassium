@@ -267,8 +267,7 @@ fn visit_id(context: &mut EmitContext, value: String) {
     };
 }
 fn visit_invoke(context: &mut EmitContext, target: AstNode, _args: Vec<AstNode>) {
-    let mut args = _args.clone();
-    args.reverse();
+    let args = _args.clone();
     for arg in args {
         visit(context, arg.to_owned());
     }
